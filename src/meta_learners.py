@@ -108,3 +108,65 @@ if __name__ == "__main__":
         print(f"  CATE MAE vs truth:    {cate_mae:.4f}")
         print(f"  corr(pred, true CATE): {corr:.3f}")
         print()
+
+
+class XLearner:
+    """
+    X-Learner (Kunzel et al. 2019). Improves on the T-Learner in three stages:
+
+      1. Fit outcome models mu_treated, mu_control (like the T-Learner).
+      2. Impute each unit's treatment effect using the *other* arm's model:
+           treated units:  D1 = Y - mu_control(X)
+           control units:  D0 = mu_treated(X) - Y
+         then fit effect models tau_treated, tau_control on D1, D0.
+      3. Combine with a propensity weight g(x):
+           tau(x) = g(x) * tau_control(x) + (1 - g(x)) * tau_treated(x)
+
+    The imputation step lets each arm's effect model borrow strength from the
+    other arm, which helps when the treated and control groups are unbalanced —
+    the case where the T-Learner's two independent models struggle most.
+    """
+
+    def __init__(self, base_model=None, propensity: float = 0.5):
+        base = base_model if base_model is not None else _default_model()
+        self.mu_treated = clone(base)
+        self.mu_control = clone(base)
+        self.tau_treated = clone(base)
+        self.tau_control = clone(base)
+        # Constant propensity is correct for a randomised experiment; a model
+        # could be substituted under observational data.
+        self.propensity = propensity
+
+    def fit(self, X, treatment, y):
+        X = X.reset_index(drop=True)
+        treatment = np.asarray(treatment)
+        y = np.asarray(y)
+
+        Xt, yt = X[treatment == 1], y[treatment == 1]
+        Xc, yc = X[treatment == 0], y[treatment == 0]
+
+        # Stage 1: outcome models
+        self.mu_treated.fit(Xt, yt)
+        self.mu_control.fit(Xc, yc)
+
+        # Stage 2: imputed effects, then effect models
+        # For treated units: actual outcome minus predicted control outcome
+        d1 = yt - self.mu_control.predict_proba(Xt)[:, 1]
+        # For control units: predicted treated outcome minus actual outcome
+        d0 = self.mu_treated.predict_proba(Xc)[:, 1] - yc
+
+        # Effect models are regressors on the imputed effects
+        from sklearn.ensemble import GradientBoostingRegressor
+        self.tau_treated = GradientBoostingRegressor(
+            n_estimators=100, max_depth=3, learning_rate=0.1, random_state=42)
+        self.tau_control = GradientBoostingRegressor(
+            n_estimators=100, max_depth=3, learning_rate=0.1, random_state=42)
+        self.tau_treated.fit(Xt, d1)
+        self.tau_control.fit(Xc, d0)
+        return self
+
+    def predict_uplift(self, X):
+        g = self.propensity
+        tau_t = self.tau_treated.predict(X)
+        tau_c = self.tau_control.predict(X)
+        return g * tau_c + (1 - g) * tau_t
