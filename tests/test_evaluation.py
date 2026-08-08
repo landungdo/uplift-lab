@@ -71,3 +71,36 @@ def test_uplift_at_k_positive_for_oracle():
     u = uplift_at_k(test_df["true_cate"].values,
                     test_df["treatment"].values, test_df["outcome"].values, k=0.3)
     assert u > 0
+
+
+def test_qini_normalized_oracle_is_one():
+    """Normalizing the oracle by itself gives 1.0."""
+    _, test_df = _setup()
+    t, y = test_df["treatment"].values, test_df["outcome"].values
+    oracle = test_df["true_cate"].values
+    from src.evaluation import qini_normalized
+    assert abs(qini_normalized(oracle, t, y, oracle) - 1.0) < 1e-9
+
+
+def test_qini_normalized_random_near_zero():
+    """Random targeting normalizes to near zero."""
+    _, test_df = _setup()
+    t, y = test_df["treatment"].values, test_df["outcome"].values
+    oracle = test_df["true_cate"].values
+    from src.evaluation import qini_normalized
+    rng = np.random.default_rng(0)
+    qn = qini_normalized(rng.random(len(test_df)), t, y, oracle)
+    assert abs(qn) < 0.2
+
+
+def test_qini_normalized_model_between_random_and_oracle():
+    """A fitted model should normalize between random (~0) and oracle (1)."""
+    train_df, test_df = _setup()
+    t, y = test_df["treatment"].values, test_df["outcome"].values
+    oracle = test_df["true_cate"].values
+    from src.evaluation import qini_normalized
+    m = TLearner().fit(train_df[FEATURES], train_df["treatment"].values,
+                       train_df["outcome"].values)
+    pred = m.predict_uplift(test_df[FEATURES])
+    qn = qini_normalized(pred, t, y, oracle)
+    assert 0.2 < qn < 1.0

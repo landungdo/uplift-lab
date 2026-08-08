@@ -1,6 +1,6 @@
 # Uplift Lab — Causal Experimentation & Treatment Optimization
 
-![tests](https://img.shields.io/badge/tests-47%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-59%20passed-brightgreen)
 
 An end-to-end **causal inference / uplift modeling** project that answers a
 different question from a standard predictive model. Instead of *"who is likely
@@ -51,8 +51,10 @@ progressively better — X-Learner best, as theory predicts:
 | Oracle (true CATE) | 1.00 | 1.00 | 0.194 |
 | Random | 0.00 | -0.07 | 0.010 |
 
-*Qini is reported normalised by the oracle's Qini area (0 ≈ random, 1 ≈ true
-CATE), so it stays in [0, 1]. Metrics are computed out-of-sample; the ATE is
+*Qini is reported normalised by the oracle's Qini area: 0 represents random
+targeting and 1 represents the oracle reference. Finite-sample estimates are not
+strictly bounded — noise can push random slightly negative or a model slightly
+above 1. Metrics are computed out-of-sample; the ATE is
 reported with a bootstrap 95% CI, e.g. ATE +0.023 (95% CI +0.008 to +0.039).*
 
 **Targeting beats treating everyone.** Treating the top 30% by uplift yields
@@ -94,7 +96,7 @@ python src/bootstrap.py           # bootstrap confidence intervals
 python src/ope_diagnostics.py     # overlap / ESS / weight-clipping checks
 python src/cuped.py               # CUPED variance reduction
 python scripts/reproduce.py       # regenerate all result tables into results/
-pytest tests/ -v                  # full test suite (47 tests)
+pytest tests/ -v                  # full test suite (59 tests, includes script smoke tests)
 ```
 
 ## Limitations & scope

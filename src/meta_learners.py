@@ -82,40 +82,6 @@ class TLearner:
         return p1 - p0
 
 
-if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from sklearn.model_selection import train_test_split
-    from src.synthetic_data import generate_uplift_data, FEATURES, true_ate
-
-    df = generate_uplift_data(n=30000, seed=42)
-
-    # Fit on train, evaluate CATE recovery on a held-out test set. Evaluating on
-    # the training data would let a learner overfit the noise in realized
-    # outcomes and overstate how well it recovers the true CATE.
-    train_df, test_df = train_test_split(df, test_size=0.5, random_state=0)
-    Xtr, ttr, ytr = train_df[FEATURES], train_df["treatment"].values, train_df["outcome"].values
-    Xte = test_df[FEATURES]
-    true_cate_te = test_df["true_cate"].values
-
-    print(f"Ground truth ATE (test): {test_df['true_cate'].mean():+.4f}\n")
-
-    for name, learner in [("S-Learner", SLearner()),
-                          ("T-Learner", TLearner()),
-                          ("X-Learner", XLearner())]:
-        learner.fit(Xtr, ttr, ytr)
-        pred = learner.predict_uplift(Xte)          # evaluated out-of-sample
-        est_ate = pred.mean()
-        cate_mae = np.mean(np.abs(pred - true_cate_te))
-        corr = np.corrcoef(pred, true_cate_te)[0, 1]
-        print(f"{name}")
-        print(f"  estimated ATE (test): {est_ate:+.4f}  (true {true_cate_te.mean():+.4f})")
-        print(f"  CATE MAE vs truth:    {cate_mae:.4f}")
-        print(f"  corr(pred, true CATE): {corr:.3f}")
-        print()
-
-
 class XLearner:
     """
     X-Learner (Kunzel et al. 2019). Improves on the T-Learner in three stages:
@@ -176,3 +142,37 @@ class XLearner:
         tau_t = self.tau_treated.predict(X)
         tau_c = self.tau_control.predict(X)
         return g * tau_c + (1 - g) * tau_t
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from sklearn.model_selection import train_test_split
+    from src.synthetic_data import generate_uplift_data, FEATURES, true_ate
+
+    df = generate_uplift_data(n=30000, seed=42)
+
+    # Fit on train, evaluate CATE recovery on a held-out test set. Evaluating on
+    # the training data would let a learner overfit the noise in realized
+    # outcomes and overstate how well it recovers the true CATE.
+    train_df, test_df = train_test_split(df, test_size=0.5, random_state=0)
+    Xtr, ttr, ytr = train_df[FEATURES], train_df["treatment"].values, train_df["outcome"].values
+    Xte = test_df[FEATURES]
+    true_cate_te = test_df["true_cate"].values
+
+    print(f"Ground truth ATE (test): {test_df['true_cate'].mean():+.4f}\n")
+
+    for name, learner in [("S-Learner", SLearner()),
+                          ("T-Learner", TLearner()),
+                          ("X-Learner", XLearner())]:
+        learner.fit(Xtr, ttr, ytr)
+        pred = learner.predict_uplift(Xte)          # evaluated out-of-sample
+        est_ate = pred.mean()
+        cate_mae = np.mean(np.abs(pred - true_cate_te))
+        corr = np.corrcoef(pred, true_cate_te)[0, 1]
+        print(f"{name}")
+        print(f"  estimated ATE (test): {est_ate:+.4f}  (true {true_cate_te.mean():+.4f})")
+        print(f"  CATE MAE vs truth:    {cate_mae:.4f}")
+        print(f"  corr(pred, true CATE): {corr:.3f}")
+        print()

@@ -68,12 +68,16 @@ def effective_sample_size(weights) -> float:
 
 
 def ess_ratio(weights) -> float:
-    """ESS divided by the number of non-zero-weight units (0..1)."""
+    """
+    ESS / N: effective sample size as a fraction of the total number of units.
+    1.0 means uniform weights (no variance inflation); values near 0 warn that
+    the estimate rests on a few high-weight units.
+    """
     w = np.asarray(weights, dtype=float)
-    n_active = int(np.sum(w > 0))
-    if n_active == 0:
+    n = len(w)
+    if n == 0:
         return 0.0
-    return effective_sample_size(w) / n_active
+    return effective_sample_size(w) / n
 
 
 def clip_weights(weights, percentile: float = 99.0) -> tuple:
@@ -116,8 +120,12 @@ if __name__ == "__main__":
 
     w = importance_weights(actions, t, e)
     print("\n=== Importance weights / ESS ===")
-    print(f"  ESS:        {effective_sample_size(w):,.0f} of {int((w>0).sum())} active")
-    print(f"  ESS ratio:  {ess_ratio(w):.3f}  (near 1 is healthy)")
+    n_active = int((w > 0).sum())
+    print(f"  ESS:        {effective_sample_size(w):,.0f} "
+          f"(of {n_active} units matching the policy action, {len(w)} total)")
+    print(f"  ESS / N:    {ess_ratio(w):.3f}  "
+          f"(a deterministic policy zeroes weights for ~half the log, so ~0.5 is")
+    print(f"              expected here; among matched units the weights are uniform)")
 
     # Show what a confounded design does to overlap (propensity depends on x0)
     print("\n=== Confounded design (propensity varies) ===")
@@ -129,7 +137,7 @@ if __name__ == "__main__":
     for k, v in ov_c.items():
         print(f"  {k}: {v}")
     w_c = 1.0 / np.where(df_c["treatment"].values == 1, e_c, 1 - e_c)
-    print(f"  ESS ratio (confounded): {ess_ratio(w_c):.3f}")
+    print(f"  ESS / N (confounded): {ess_ratio(w_c):.3f}  (all units active here)")
     clipped, frac = clip_weights(w_c, percentile=99)
     print(f"  after clipping at p99: {frac:.1%} of weights capped, "
-          f"ESS ratio -> {ess_ratio(clipped):.3f}")
+          f"ESS/N -> {ess_ratio(clipped):.3f}")

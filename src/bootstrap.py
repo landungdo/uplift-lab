@@ -14,24 +14,26 @@ The bootstrap is metric-agnostic: pass any function that maps a resampled frame
 import numpy as np
 
 
-def bootstrap_ci(statistic_fn, n_bootstrap: int = 500,
-                 alpha: float = 0.05, seed: int = 0):
+def bootstrap_ci(statistic_fn, point_estimate: float = None,
+                 n_bootstrap: int = 500, alpha: float = 0.05, seed: int = 0):
     """
     Generic percentile bootstrap.
 
     statistic_fn : callable(rng) -> float
-        A function that, given a numpy Generator, draws one resample and returns
-        the statistic on it. Keeping resampling inside the callable lets the
-        caller control exactly what is resampled (rows, arms, etc.).
+        Given a numpy Generator, draws one resample and returns the statistic.
+    point_estimate : float, optional
+        The statistic on the ORIGINAL sample. This is the correct point estimate
+        to report; the bootstrap replicates are used only to form the interval.
+        If None, the mean of the replicates is used as a fallback.
 
-    Returns (point, lo, hi): the mean of bootstrap estimates and the
-    (alpha/2, 1-alpha/2) percentile interval.
+    Returns (point, lo, hi).
     """
     rng = np.random.default_rng(seed)
     estimates = np.array([statistic_fn(rng) for _ in range(n_bootstrap)])
     lo = float(np.percentile(estimates, 100 * alpha / 2))
     hi = float(np.percentile(estimates, 100 * (1 - alpha / 2)))
-    return float(estimates.mean()), lo, hi
+    point = float(point_estimate) if point_estimate is not None else float(estimates.mean())
+    return point, lo, hi
 
 
 def ate_ci(treatment, outcome, n_bootstrap: int = 500, alpha: float = 0.05,
@@ -48,7 +50,11 @@ def ate_ci(treatment, outcome, n_bootstrap: int = 500, alpha: float = 0.05,
             return 0.0
         return yy[tt == 1].mean() - yy[tt == 0].mean()
 
-    return bootstrap_ci(stat, n_bootstrap, alpha, seed)
+    # Point estimate on the ORIGINAL sample (not the bootstrap mean)
+    point = (y[t == 1].mean() - y[t == 0].mean()
+             if t.sum() > 0 and (1 - t).sum() > 0 else 0.0)
+    return bootstrap_ci(stat, point_estimate=point,
+                        n_bootstrap=n_bootstrap, alpha=alpha, seed=seed)
 
 
 def metric_ci(score, treatment, outcome, metric_fn,
@@ -66,7 +72,10 @@ def metric_ci(score, treatment, outcome, metric_fn,
         idx = rng.integers(0, n, n)
         return metric_fn(s[idx], t[idx], y[idx])
 
-    return bootstrap_ci(stat, n_bootstrap, alpha, seed)
+    # Point estimate on the ORIGINAL sample
+    point = metric_fn(s, t, y)
+    return bootstrap_ci(stat, point_estimate=point,
+                        n_bootstrap=n_bootstrap, alpha=alpha, seed=seed)
 
 
 if __name__ == "__main__":
