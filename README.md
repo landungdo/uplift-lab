@@ -1,6 +1,6 @@
 # Uplift Lab — Causal Experimentation & Treatment Optimization
 
-![tests](https://img.shields.io/badge/tests-42%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-47%20passed-brightgreen)
 
 An end-to-end **causal inference / uplift modeling** project that answers a
 different question from a standard predictive model. Instead of *"who is likely
@@ -35,6 +35,7 @@ evaluation, and the budget-constrained decision layer around that idea.
 | Off-policy evaluation | `src/off_policy.py` | IPS, SNIPS, Doubly Robust — value a new policy from logged data |
 | Bootstrap CIs | `src/bootstrap.py` | Percentile confidence intervals for ATE, Qini, AUUC |
 | OPE diagnostics | `src/ope_diagnostics.py` | Overlap/positivity, effective sample size, weight clipping |
+| CUPED | `src/cuped.py` | Variance reduction via a pre-experiment covariate |
 | Reproduce | `scripts/reproduce.py` | One command regenerates every table into `results/` |
 
 ## Headline results (semi-synthetic, out-of-sample)
@@ -91,8 +92,9 @@ python src/experiment_design.py   # power/MDE, SRM, A/A calibration
 python src/off_policy.py          # IPS / SNIPS / Doubly Robust
 python src/bootstrap.py           # bootstrap confidence intervals
 python src/ope_diagnostics.py     # overlap / ESS / weight-clipping checks
+python src/cuped.py               # CUPED variance reduction
 python scripts/reproduce.py       # regenerate all result tables into results/
-pytest tests/ -v                  # full test suite (42 tests)
+pytest tests/ -v                  # full test suite (47 tests)
 ```
 
 ## Limitations & scope
