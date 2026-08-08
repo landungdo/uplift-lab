@@ -1,6 +1,6 @@
 # Uplift Lab — Causal Experimentation & Treatment Optimization
 
-![tests](https://img.shields.io/badge/tests-36%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-42%20passed-brightgreen)
 
 An end-to-end **causal inference / uplift modeling** project that answers a
 different question from a standard predictive model. Instead of *"who is likely
@@ -11,6 +11,9 @@ should we treat to maximize incremental profit under a budget?"*
 > effects** using a semi-synthetic data generator — because on real data the
 > individual treatment effect is never observed, so an uplift estimator cannot
 > be checked directly. This project makes that check possible and central.
+
+See [`MODEL_CARD.md`](MODEL_CARD.md) for intended use, the five load-bearing
+causal assumptions, and known limitations.
 
 ## Why this is not just another classifier
 
@@ -31,6 +34,7 @@ evaluation, and the budget-constrained decision layer around that idea.
 | Experiment design | `src/experiment_design.py` | Power/MDE, sample size, SRM check, A/A calibration |
 | Off-policy evaluation | `src/off_policy.py` | IPS, SNIPS, Doubly Robust — value a new policy from logged data |
 | Bootstrap CIs | `src/bootstrap.py` | Percentile confidence intervals for ATE, Qini, AUUC |
+| OPE diagnostics | `src/ope_diagnostics.py` | Overlap/positivity, effective sample size, weight clipping |
 | Reproduce | `scripts/reproduce.py` | One command regenerates every table into `results/` |
 
 ## Headline results (semi-synthetic, out-of-sample)
@@ -86,8 +90,9 @@ python src/policy.py              # budget-constrained targeting + profit curve
 python src/experiment_design.py   # power/MDE, SRM, A/A calibration
 python src/off_policy.py          # IPS / SNIPS / Doubly Robust
 python src/bootstrap.py           # bootstrap confidence intervals
+python src/ope_diagnostics.py     # overlap / ESS / weight-clipping checks
 python scripts/reproduce.py       # regenerate all result tables into results/
-pytest tests/ -v                  # full test suite (36 tests)
+pytest tests/ -v                  # full test suite (42 tests)
 ```
 
 ## Limitations & scope
