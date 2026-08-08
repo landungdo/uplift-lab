@@ -19,7 +19,7 @@ Qini curve:
 
 Qini coefficient:
     Area between the model's Qini curve and the random (diagonal) line,
-    normalised. Higher is better; 0 means no better than random.
+    (raw, unnormalised area). Higher is better; ~0 means no better than random.
 
 AUUC (Area Under the Uplift Curve):
     Area under the cumulative-gain curve. Closely related to Qini; reported
@@ -66,18 +66,32 @@ def qini_curve(uplift_score, treatment, outcome):
 
 def qini_coefficient(uplift_score, treatment, outcome) -> float:
     """
-    Qini coefficient: area between the model curve and the random diagonal,
-    normalised by the total incremental gain. Higher is better; 0 ~ random.
+    Raw Qini area: the area between the model's cumulative-gain curve and the
+    random (diagonal) line, integrated over the targeting depth. Higher is
+    better; ~0 means no better than random; negative means worse than random.
+
+    This is the *unnormalised* area, so its scale depends on the total
+    incremental gain (it is not bounded to [0, 1]). It is used to *compare*
+    rankers on the same dataset, where the scale is common. For a bounded
+    version, divide by the oracle's raw area (see `qini_normalized`).
     """
     fractions, gains = qini_curve(uplift_score, treatment, outcome)
-    # Random baseline: straight line from origin to the final total gain
     total_gain = gains[-1]
     random_line = fractions * total_gain
-    # Area between model and random, by trapezoidal integration over fractions
-    area_between = np.trapezoid(gains - random_line, fractions)
-    # Normalise by the area of the "perfect wedge" (0.5 * total_gain) if nonzero
-    denom = 0.5 * abs(total_gain)
-    return float(area_between / denom) if denom > 0 else 0.0
+    return float(np.trapezoid(gains - random_line, fractions))
+
+
+def qini_normalized(uplift_score, treatment, outcome, oracle_score) -> float:
+    """
+    Qini area normalised by the oracle's Qini area, giving a value in roughly
+    [0, 1]: 0 ~ random, 1 ~ as good as ranking by the true CATE. Requires an
+    oracle ranking (available here because the data is semi-synthetic).
+    """
+    model_area = qini_coefficient(uplift_score, treatment, outcome)
+    oracle_area = qini_coefficient(oracle_score, treatment, outcome)
+    if oracle_area <= 0:
+        return 0.0
+    return float(model_area / oracle_area)
 
 
 def auuc(uplift_score, treatment, outcome) -> float:
@@ -124,21 +138,22 @@ if __name__ == "__main__":
     Xte, tte, yte = test_df[FEATURES], test_df["treatment"].values, test_df["outcome"].values
 
     print("Uplift ranking quality on held-out test set\n")
-    print(f"{'Model':<14} {'Qini':>8} {'AUUC':>10} {'uplift@30%':>12}")
-    print("-" * 46)
-
+    oracle = test_df["true_cate"].values
     rankers = [
         ("S-Learner", SLearner().fit(Xtr, ttr, ytr).predict_uplift(Xte)),
         ("T-Learner", TLearner().fit(Xtr, ttr, ytr).predict_uplift(Xte)),
         ("X-Learner", XLearner().fit(Xtr, ttr, ytr).predict_uplift(Xte)),
-        ("Oracle(true)", test_df["true_cate"].values),
+        ("Oracle(true)", oracle),
         ("Random", np.random.default_rng(0).random(len(test_df))),
     ]
+    print(f"{"Model":<14} {"QiniArea":>9} {"Qini/Oracle":>12} {"AUUC":>9} {"uplift@30%":>11}")
+    print("-" * 60)
     for name, score in rankers:
         q = qini_coefficient(score, tte, yte)
+        qn = qini_normalized(score, tte, yte, oracle)
         a = auuc(score, tte, yte)
         u = uplift_at_k(score, tte, yte, k=0.3)
-        print(f"{name:<14} {q:>8.3f} {a:>10.1f} {u:>12.4f}")
+        print(f"{name:<14} {q:>9.3f} {qn:>12.3f} {a:>9.1f} {u:>11.4f}")
 
     print("\nThe true-CATE oracle sets the ceiling; X-Learner should approach it")
     print("and beat S/T; random sits near zero.")

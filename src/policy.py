@@ -106,17 +106,25 @@ if __name__ == "__main__":
     from src.synthetic_data import generate_uplift_data, FEATURES
     from src.meta_learners import XLearner
 
-    df = generate_uplift_data(n=40000, seed=42)
-    train_df, test_df = train_test_split(df, test_size=0.5, random_state=0)
+    df = generate_uplift_data(n=60000, seed=42)
+    # Three-way split: train the model, SELECT the budget on validation, then
+    # freeze it and report the final profit on the untouched test set. Selecting
+    # and reporting the budget on the same set would bias the profit upward.
+    train_df, rest = train_test_split(df, test_size=0.5, random_state=0)
+    valid_df, test_df = train_test_split(rest, test_size=0.5, random_state=0)
 
     model = XLearner().fit(train_df[FEATURES], train_df["treatment"].values,
                            train_df["outcome"].values)
-    score = model.predict_uplift(test_df[FEATURES])
+
+    def _scores(d):
+        return model.predict_uplift(d[FEATURES])
+
     t = test_df["treatment"].values
     y = test_df["outcome"].values
     true_cate = test_df["true_cate"].values
+    score = _scores(test_df)
 
-    # Compare targeting the top 30% by model vs random vs treating everyone
+    # Compare targeting the top 30% by model vs random vs treating everyone (test)
     print("Policy value: incremental conversions from treating a set (test set)\n")
     for name, sc in [("X-Learner top 30%", score),
                      ("Random 30%", np.random.default_rng(0).random(len(test_df)))]:
@@ -124,18 +132,29 @@ if __name__ == "__main__":
         exp_val = policy_value_experimental(mask, t, y)
         true_val = policy_value_true(mask, true_cate)
         print(f"{name:<20} experimental={exp_val:8.1f}   true={true_val:8.1f}")
-    # Treat everyone
     all_mask = np.ones(len(test_df), dtype=bool)
     print(f"{'Treat everyone':<20} experimental={policy_value_experimental(all_mask,t,y):8.1f}"
           f"   true={policy_value_true(all_mask,true_cate):8.1f}")
 
-    print("\nProfit curve (value/conv=$100, cost/treat=$10):\n")
-    curve = profit_curve(score, t, y, value_per_conversion=100, cost_per_treatment=10)
-    with pd.option_context("display.float_format", lambda x: f"{x:,.1f}"):
-        print(curve.to_string(index=False))
+    # SELECT the profit-optimal budget on VALIDATION
+    val_score = _scores(valid_df)
+    val_curve = profit_curve(val_score, valid_df["treatment"].values,
+                             valid_df["outcome"].values,
+                             value_per_conversion=100, cost_per_treatment=10)
+    chosen = optimal_budget(val_curve)
+    chosen_budget = chosen["budget_frac"]
 
-    best = optimal_budget(curve)
-    print(f"\nProfit-optimal budget: treat top {best['budget_frac']:.0%} "
-          f"({int(best['n_treated'])} users) -> profit ${best['profit']:,.0f}")
-    print("Treating everyone is not optimal: past a point, extra treatments cost")
-    print("more than the incremental conversions they buy (and sleeping dogs hurt).")
+    # FREEZE that budget and evaluate once on TEST
+    test_curve = profit_curve(score, t, y,
+                              value_per_conversion=100, cost_per_treatment=10,
+                              grid=[chosen_budget])
+    test_row = test_curve.iloc[0]
+
+    print(f"\nBudget selected on validation: top {chosen_budget:.0%}")
+    print(f"Frozen budget evaluated on test: top {chosen_budget:.0%}")
+    print(f"  test profit:  ${test_row['profit']:,.0f}")
+    print(f"  test n_treated: {int(test_row['n_treated'])}")
+    print("\nSelecting the budget on validation and only then scoring it on test")
+    print("removes the optimism bias of choosing and reporting on the same data.")
+    print("Treating everyone is not optimal: extra treatments cost more than the")
+    print("incremental conversions they buy, and sleeping dogs have negative uplift.")

@@ -31,7 +31,7 @@ def _setup(n=40000, seed=0, threshold=0.0):
     mu0 = tl.model_control.predict_proba(test_df[FEATURES])[:, 1]
     t = test_df["treatment"].values
     y = test_df["outcome"].values
-    e = np.full(len(test_df), train_df["treatment"].mean())
+    e = np.full(len(test_df), 0.5)  # exact design propensity
     actions = _policy_actions(score, threshold)
     true_val = true_policy_value(actions, test_df["p_treated"].values,
                                  test_df["p_control"].values)

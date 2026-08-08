@@ -128,7 +128,12 @@ if __name__ == "__main__":
     t = test_df["treatment"].values
     y = test_df["outcome"].values
     # Known randomised propensity (share treated in the design)
-    e = np.full(len(test_df), train_df["treatment"].mean())
+    # Known design propensity of the randomised experiment (0.5 by construction).
+    # Using the exact design probability — not the observed sample share — is the
+    # correct choice: the propensity is a property of the assignment mechanism,
+    # and in a real log it would be stored per unit rather than estimated.
+    DESIGN_PROPENSITY = 0.5
+    e = np.full(len(test_df), DESIGN_PROPENSITY)
 
     # New policy: treat users with predicted uplift above 0
     actions = _policy_actions(score, threshold=0.0)

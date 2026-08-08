@@ -1,6 +1,6 @@
 # Uplift Lab — Causal Experimentation & Treatment Optimization
 
-![tests](https://img.shields.io/badge/tests-32%20passed-brightgreen)
+![tests](https://img.shields.io/badge/tests-36%20passed-brightgreen)
 
 An end-to-end **causal inference / uplift modeling** project that answers a
 different question from a standard predictive model. Instead of *"who is likely
@@ -30,24 +30,31 @@ evaluation, and the budget-constrained decision layer around that idea.
 | Targeting policy | `src/policy.py` | Budget-constrained top-k targeting + profit optimization |
 | Experiment design | `src/experiment_design.py` | Power/MDE, sample size, SRM check, A/A calibration |
 | Off-policy evaluation | `src/off_policy.py` | IPS, SNIPS, Doubly Robust — value a new policy from logged data |
+| Bootstrap CIs | `src/bootstrap.py` | Percentile confidence intervals for ATE, Qini, AUUC |
+| Reproduce | `scripts/reproduce.py` | One command regenerates every table into `results/` |
 
 ## Headline results (semi-synthetic, out-of-sample)
 
 **Meta-learners recover the ground-truth ATE** (true ≈ +0.024) and rank CATE
 progressively better — X-Learner best, as theory predicts:
 
-| Model | corr with true CATE | Qini | uplift@30% |
+| Model | corr with true CATE | Qini / Oracle | uplift@30% |
 |---|---|---|---|
-| S-Learner | 0.60 | 1.38 | 0.126 |
-| T-Learner | 0.64 | 1.44 | 0.124 |
-| X-Learner | **0.69** | **1.50** | **0.131** |
-| Oracle (true CATE) | 1.00 | 2.05 | 0.166 |
-| Random | 0.00 | -0.07 | 0.036 |
+| S-Learner | 0.63 | 0.65 | 0.146 |
+| T-Learner | 0.61 | 0.66 | 0.137 |
+| X-Learner | **0.67** | **0.71** | **0.151** |
+| Oracle (true CATE) | 1.00 | 1.00 | 0.194 |
+| Random | 0.00 | -0.07 | 0.010 |
+
+*Qini is reported normalised by the oracle's Qini area (0 ≈ random, 1 ≈ true
+CATE), so it stays in [0, 1]. Metrics are computed out-of-sample; the ATE is
+reported with a bootstrap 95% CI, e.g. ATE +0.023 (95% CI +0.008 to +0.039).*
 
 **Targeting beats treating everyone.** Treating the top 30% by uplift yields
-*more* incremental conversions (≈759) than treating the entire population
-(≈466), because treating everyone also hits sleeping dogs. The profit-optimal
-budget is an interior point (~top 20%), not "treat everyone".
+*more* incremental conversions than treating the entire population, because
+treating everyone also hits sleeping dogs. The profit-optimal budget is selected
+**on a validation split and frozen before scoring on test** (to avoid optimism
+bias), and lands at an interior point (~top 15%), not "treat everyone".
 
 **Off-policy evaluation** estimates a new policy's value from logged data without
 deploying it; all three estimators track the true value, Doubly Robust closest:
@@ -78,7 +85,9 @@ python src/evaluation.py          # Qini/AUUC/uplift@k, out-of-sample
 python src/policy.py              # budget-constrained targeting + profit curve
 python src/experiment_design.py   # power/MDE, SRM, A/A calibration
 python src/off_policy.py          # IPS / SNIPS / Doubly Robust
-pytest tests/ -v                  # full test suite
+python src/bootstrap.py           # bootstrap confidence intervals
+python scripts/reproduce.py       # regenerate all result tables into results/
+pytest tests/ -v                  # full test suite (36 tests)
 ```
 
 ## Limitations & scope
