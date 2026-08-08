@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+
 ROOT = Path(__file__).resolve().parents[1]
 
 SCRIPTS = [
@@ -26,6 +27,7 @@ SCRIPTS = [
     "src/bootstrap.py",
     "src/ope_diagnostics.py",
     "src/cuped.py",
+    "scripts/reproduce.py",
 ]
 
 
@@ -33,7 +35,10 @@ SCRIPTS = [
 def test_script_runs(script):
     result = subprocess.run(
         [sys.executable, script],
-        cwd=ROOT, capture_output=True, text=True, timeout=300,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     assert result.returncode == 0, (
         f"{script} failed:\n{result.stderr[-1500:]}"
